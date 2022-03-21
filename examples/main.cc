@@ -1,4 +1,4 @@
-﻿#include <sqlite3.h>
+#include <sqlite3.h>
 
 #include <chrono>
 #include <iostream>
@@ -12,13 +12,12 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <Windows.h>
-#define GetCurrentDir _getcwd
 using ParamString = std::wstring;
 using FileStream = std::wifstream;
 #define STRING(str) L##str
 #else
 #include <unistd.h>
-#define GetCurrentDir getcwd
+#include <mach-o/dyld.h>
 using ParamString = std::string;
 using FileStream = std::ifstream;
 #define STRING(str) str
@@ -72,11 +71,22 @@ std::string ParamString2UTF8(const ParamString& str) {
 }
 
 // https://www.tutorialspoint.com/find-out-the-current-working-directory-in-c-cplusplus
-string get_current_dir() {
-	char buff[FILENAME_MAX];  // create string buffer to hold path
-	GetCurrentDir(buff, FILENAME_MAX);
-	string current_working_dir(buff);
-	return current_working_dir;
+ParamString get_current_dir() {
+#ifdef WIN32
+	WCHAR szapipath[MAX_PATH] = { 0 };
+	GetModuleFileNameW(NULL, szapipath, MAX_PATH);
+	WCHAR* find = wcsrchr(szapipath, L'\\');
+	*find = L'\0';
+	return szapipath;
+#else
+	char path[512];
+	unsigned size = 512;
+	_NSGetExecutablePath(path, &size);
+	char* find = strrchr(path, '/');
+	*find = '\0';
+	printf("The path is: %s\n", path);
+	return path;
+#endif
 }
 
 // Create a callback function
@@ -112,8 +122,9 @@ int simply_execute(sqlite3* db, const char* sql) {
 
 void simply_query(sqlite3* db, const char* query, const char* col) {
 	std::stringstream ss;
-	ss << "select simple_highlight(message_index, 0, '[', ']') as " << col
-		<< " from message_index where content match simple_query('"
+	ss << "select simple_highlight(message_index, 0, '[', ']') as hight";
+  ss << ", simple_highlight_pos(message_index, 0) as " << col;
+	ss << " from message_index where content match simple_query('"
 		<< query << "');";
 	simply_execute(db, ss.str().c_str());
 }
@@ -201,7 +212,7 @@ bool create_table_message(sqlite3 *db) {
 	printer.Print("create UNIQUE INDEX message_meta_unique_idx");
 
 	sql = R"tt(CREATE VIRTUAL TABLE IF NOT EXISTS message_index 
-		USING FTS5 (content, content='message_meta', content_rowid=id, tokenize='simple 0');
+		USING FTS5 (content, content='message_meta', content_rowid=id, tokenize="simple 1");
 	)tt";
 	simply_execute(db, sql.c_str());
 	printer.Print("create VIRTUAL TABLE message_index");
@@ -223,33 +234,33 @@ bool create_table_message(sqlite3 *db) {
 	return true;
 }
 
+struct message_mate {
+    std::string sender_id;
+    std::string conversation_id;
+    std::string message_id;
+    int32_t message_type;
+    int64_t create_time;
+    std::string content;
+
+    std::string to_sql() {
+        std::stringstream ss;
+        ss << "insert into message_meta(sender_id, conversation_id, message_id, message_type, create_time, content) values ('"
+            << sender_id << "', '"
+            << conversation_id << "', '"
+            << message_id << "', "
+            << message_type << ", "
+            << create_time << ", '"
+            << content << "')";
+        return ss.str();
+    }
+};
+
 bool insert_message(sqlite3* db) {
-	struct message_mate {
-		std::string sender_id;
-		std::string conversation_id;
-		std::string message_id;
-		int32_t message_type;
-		int64_t create_time;
-		std::string content;
-
-		std::string to_sql() {
-			std::stringstream ss;
-			ss << "insert into message_meta(sender_id, conversation_id, message_id, message_type, create_time, content) values ('"
-				<< sender_id << "', '"
-				<< conversation_id << "', '"
-				<< message_id << "', "
-				<< message_type << ", "
-				<< create_time << ", '"
-				<< content << "')";
-			return ss.str();
-		}
-	};
-
-	ParamString filePath = STRING("C:\\Users\\donghongyue\\Documents\\一剑独尊.txt");
+	ParamString filePath = get_current_dir() + STRING("/一剑独尊.txt");
 	FileStream myfile;
 	myfile.open(filePath);
 	if (!myfile.is_open()) {
-		std::cout << "file open failed" << std::endl;
+		std::cout << "file open failed: " << ParamString2UTF8(filePath) << std::endl;
 		return false;
 	}
 
@@ -289,7 +300,9 @@ bool insert_message(sqlite3* db) {
 }
 
 int main() {
+	#ifdef WIN32
 	system("chcp 65001");
+	#endif
 	// Pointer to SQLite connection
 	sqlite3 *db(nullptr);
 	// inject static extension
@@ -300,7 +313,9 @@ int main() {
 
 	// Save the connection result
 	// rc = sqlite3_open(":memory:", &db);
-	rc = sqlite3_open("C:/Users/donghongyue/Documents/ftsv5.db", &db);
+	ParamString dbpath = get_current_dir() + STRING("/fts5.db");
+	std::string strpth = ParamString2UTF8(dbpath);
+	rc = sqlite3_open(strpth.c_str(), &db);
 	handle_rc(db, rc);
 	printer.Print("sqlite3_open");
 
@@ -314,25 +329,50 @@ int main() {
 	create_table_message(db);
 	insert_message(db);
 
-	// warm-up
-	string sql = "select simple_query('pinyin')";
-	simply_execute(db, sql.c_str());
-	printer.Print("simple_query");
+  printer.Print("db prepare over");
 
-	sql = "select simple_query('中')";
-	simply_execute(db, sql.c_str());
-	printer.Print("simple_query(中国)");
+	std::string line;
+	while (std::getline(std::cin, line)) {
+			if(line == "end") {
+					break;
+			}
+			auto pos = line.find("sql:");
+			if (pos != std::string::npos) {
+					PrintTime printer;
+					std::string sql = line.substr(pos+4);
+					simply_execute(db, sql.c_str());
+					printer.Print("sql");
+					continue;
+			}
+			pos = line.find("search:");
+			if (pos != std::string::npos) {
+					PrintTime printer;
+					std::string sql = line.substr(pos+7);
+					std::cout << "search:" << sql << std::endl;
+					simply_query(db, sql.c_str(), "result");
+					printer.Print("search");
+					continue;
+			}
+			pos = line.find("insert:");
+			if (pos != std::string::npos) {
+					PrintTime printer;
+					std::string content = line.substr(pos+7);
+					std::cout << "insert: " << content << std::endl;
+					
+					message_mate mate;
+					mate.create_time = Clock::now().time_since_epoch().count();
+					mate.message_id = std::to_string(mate.create_time + 1);
+					mate.conversation_id = std::to_string(mate.create_time + 2);
+					mate.sender_id = "sender";
+					mate.message_type = mate.create_time % 10;
+					mate.content = content;
 
-	// case 1: match pinyin
-	simply_query(db, "zhoujiel", "pinyin");
-	printer.Print("simple_query('zhoujiel')");
-
-	simply_query(db, "中", "zhongguo");
-	printer.Print("simple_query('中国')");
-
-	sql = "select * from message_index limit 10";
-	simply_execute(db, sql.c_str());
-	printer.Print("message_index limit 10");
+					std::string sql = mate.to_sql();
+					simply_execute(db, sql.c_str());
+					printer.Print("insert");
+					continue;
+			}
+	}
 
 	// Close the connection
 	sqlite3_close(db);

@@ -115,10 +115,8 @@ namespace simple_tokenizer {
 		while ((pos = s.find(delimiter)) != std::string::npos) {
 			std::string token = s.substr(0, pos);
 			v.insert(token);
-			std::cout << token << std::endl;
 			s.erase(0, pos + delimiter.length());
 		}
-		std::cout << s << std::endl;
 		v.insert(s);
 
 	}

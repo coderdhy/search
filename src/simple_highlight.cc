@@ -480,8 +480,8 @@ extern "C" void simple_highlight_pos2(const Fts5ExtensionApi *pApi, /* API offer
 
 /*************************************************************************/
 /* Start of simple_snippet() implementation.
-/* adapt from snippet
-/*
+* adapt from snippet
+*
 ** Context object passed to the fts5SnippetFinderCb() function.
 */
 typedef struct Fts5SnippetFinder Fts5SnippetFinder;

@@ -61,7 +61,8 @@ static void simple_query(sqlite3_context *pCtx, int nVal, sqlite3_value **apVal)
     sqlite3_result_null(pCtx);
 }
 
-int sqlite3_simple_init(sqlite3 *db, const sqlite3_api_routines *pApi) {
+int sqlite3_simple_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi) {
+    (void)pzErrMsg;
     int rc = SQLITE_OK;
     SQLITE_EXTENSION_INIT2(pApi)
 
