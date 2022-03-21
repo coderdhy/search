@@ -27,15 +27,15 @@ if [ "${var1}" = "-p" ]; then
   fi
 elif [ "${var1}" = "release" ]; then
   if [ "$SHELL_OS" = "darwin" ]; then
-    cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build ./
+    cmake .. -DCMAKE_BUILD_TYPE=Release && make
   else
-    cmake .. -DCMAKE_BUILD_TYPE=Release -A Win32 && cmake --build ./
+    cmake .. -A Win32 && cmake --build ./ --config=Release
   fi
 elif [ "${var1}" = "debug" ]; then
   if [ "$SHELL_OS" = "darwin" ]; then
-    cmake .. -DCMAKE_BUILD_TYPE=Debug && cmake --build ./
+    cmake .. -DCMAKE_BUILD_TYPE=Debug && make 
   else
-    cmake .. -DCMAKE_BUILD_TYPE=Debug  -A Win32 && cmake --build ./
+    cmake .. -A Win32 && cmake --build ./ --config=Debug
   fi
 fi
 

@@ -1,4 +1,4 @@
-#ifndef PINYIN_H_
+﻿#ifndef PINYIN_H_
 #define PINYIN_H_
 
 #include <map>

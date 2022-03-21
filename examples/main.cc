@@ -1,4 +1,4 @@
-#include <sqlite3.h>
+﻿#include <sqlite3.h>
 
 #include <chrono>
 #include <iostream>
@@ -12,16 +12,22 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <Windows.h>
-using ParamString = std::wstring;
-using FileStream = std::wifstream;
-#define STRING(str) L##str
+const char* GBK_LOCALE_NAME = ".936";
 #else
 #include <unistd.h>
 #include <mach-o/dyld.h>
-using ParamString = std::string;
-using FileStream = std::ifstream;
-#define STRING(str) str
+const char* GBK_LOCALE_NAME = "zh_CN.GBK";
 #endif
+
+template<class Facet>
+struct deletable_facet : Facet
+{
+	template<class ...Args>
+	deletable_facet(Args&& ...args)
+		: Facet(std::forward<Args>(args)...) {}
+	~deletable_facet() {}
+};
+using mbs_facet_t = deletable_facet<std::codecvt_byname<wchar_t, char, std::mbstate_t>>;
 
 using namespace std;
 typedef void(*xentry)(void);
@@ -50,6 +56,20 @@ static inline void trim(std::string &s) {
 	rtrim(s);
 }
 
+std::string ToString(const std::wstring& wstr) {
+	const mbs_facet_t& cvt = std::use_facet<mbs_facet_t>(std::locale());
+	std::wstring_convert<mbs_facet_t> converter(&cvt);
+	std::string str = converter.to_bytes(wstr);
+	return str;
+}
+
+std::wstring ToWString(const std::string& str) {
+	const mbs_facet_t& cvt = std::use_facet<mbs_facet_t>(std::locale());
+	std::wstring_convert<mbs_facet_t> converter(&cvt);
+	std::wstring wstr = converter.from_bytes(str);
+	return wstr;
+}
+
 // convert UTF-8 string to wstring
 std::wstring utf8_to_wstring(const std::string& str) {
 	std::wstring_convert<std::codecvt_utf8<wchar_t>> myconv;
@@ -62,20 +82,50 @@ std::string wstring_to_utf8(const std::wstring& str) {
 	return myconv.to_bytes(str);
 }
 
-std::string ParamString2UTF8(const ParamString& str) {
+// convert wstring to UTF-8 string
+std::string wstring_to_gbk(const std::wstring& wstr) {
+	std::wstring_convert<mbs_facet_t> conv(new mbs_facet_t(GBK_LOCALE_NAME));
+	std::string  str = conv.to_bytes(wstr);
+	return str;
+}
+
+// convert gbk to wstring 
+std::wstring gbk_to_wstring(const std::string& str) {
+	std::wstring_convert<mbs_facet_t> conv(new mbs_facet_t(GBK_LOCALE_NAME));
+	std::wstring  wstr = conv.from_bytes(str);
+	return wstr;
+}
+
+std::string String2Utf8(const std::string& str) {
 #ifdef WIN32
-	return wstring_to_utf8(str);
+	return wstring_to_utf8(gbk_to_wstring(str));
+#else
+	return str;
+#endif // WIN32
+}
+
+std::string Utf82Local(const std::string& str) {
+#ifdef WIN32
+	return wstring_to_gbk(utf8_to_wstring(str));
+#else
+	return str;
+#endif // WIN32
+}
+
+std::string localizeString(const string& str) {
+#ifdef WIN32
+	return wstring_to_gbk(utf8_to_wstring(str));
 #else
 	return str;
 #endif // WIN32
 }
 
 // https://www.tutorialspoint.com/find-out-the-current-working-directory-in-c-cplusplus
-ParamString get_current_dir() {
+std::string get_current_dir() {
 #ifdef WIN32
-	WCHAR szapipath[MAX_PATH] = { 0 };
-	GetModuleFileNameW(NULL, szapipath, MAX_PATH);
-	WCHAR* find = wcsrchr(szapipath, L'\\');
+	char szapipath[MAX_PATH] = { 0 };
+	GetModuleFileNameA(NULL, szapipath, MAX_PATH);
+	char* find = strrchr(szapipath, '\\');
 	*find = L'\0';
 	return szapipath;
 #else
@@ -84,7 +134,6 @@ ParamString get_current_dir() {
 	_NSGetExecutablePath(path, &size);
 	char* find = strrchr(path, '/');
 	*find = '\0';
-	printf("The path is: %s\n", path);
 	return path;
 #endif
 }
@@ -96,10 +145,10 @@ int callback(void *NotUsed, int argc, char **argv, char **azColName) {
 	// (array) argv: holds each value
 	for (int i = 0; i < argc; i++) {
 		// Show column name, value, and newline
-		cout << azColName[i] << ": " << argv[i] << endl;
+		std::cout << azColName[i] << ": " << Utf82Local(argv[i]) << std::endl;
 	}
 	if (argc > 0) {
-		cout << endl;
+		std::cout << std::endl;
 	}
 	// Return successful
 	return 0;
@@ -107,7 +156,7 @@ int callback(void *NotUsed, int argc, char **argv, char **azColName) {
 
 void handle_rc(sqlite3 *db, int rc) {
 	if (rc != SQLITE_OK) {
-		cout << "sqlite3 rc: " << rc << ", error: " << sqlite3_errmsg(db) << endl;
+		std::cout << "sqlite3 rc: " << rc << ", error: " << sqlite3_errmsg(db) << std::endl;
 		exit(rc);
 	}
 }
@@ -256,11 +305,11 @@ struct message_mate {
 };
 
 bool insert_message(sqlite3* db) {
-	ParamString filePath = get_current_dir() + STRING("/一剑独尊.txt");
-	FileStream myfile;
+	std::string filePath = get_current_dir() + "/一剑独尊.txt";
+	std::ifstream myfile;
 	myfile.open(filePath);
 	if (!myfile.is_open()) {
-		std::cout << "file open failed: " << ParamString2UTF8(filePath) << std::endl;
+		std::cout << "file open failed: " << filePath << std::endl;
 		return false;
 	}
 
@@ -268,12 +317,12 @@ bool insert_message(sqlite3* db) {
 	PrintTime printer;
 	char buf[255] = "";
 	for (int index = 0; index < counts; index++) {
-		ParamString read;
+		std::string read;
 		if (!std::getline(myfile, read)) {
 			break;
 		}
-		std::string line = ParamString2UTF8(read);
-		trim(line);
+		trim(read);
+		std::string line = String2Utf8(read);
 		if (line.empty()) {
 			continue;
 		}
@@ -300,9 +349,11 @@ bool insert_message(sqlite3* db) {
 }
 
 int main() {
-	#ifdef WIN32
-	system("chcp 65001");
-	#endif
+#ifdef WIN32
+	int codepage = GetACP();
+	std::cout << "code page: " << codepage << std::endl;
+#endif // WIN32
+
 	// Pointer to SQLite connection
 	sqlite3 *db(nullptr);
 	// inject static extension
@@ -313,9 +364,9 @@ int main() {
 
 	// Save the connection result
 	// rc = sqlite3_open(":memory:", &db);
-	ParamString dbpath = get_current_dir() + STRING("/fts5.db");
-	std::string strpth = ParamString2UTF8(dbpath);
-	rc = sqlite3_open(strpth.c_str(), &db);
+	std::string dbpath = get_current_dir() + "/fts5.db";
+	//std::string strpth = ParamString2UTF8(dbpath);
+	rc = sqlite3_open(dbpath.c_str(), &db);
 	handle_rc(db, rc);
 	printer.Print("sqlite3_open");
 
@@ -340,6 +391,7 @@ int main() {
 			if (pos != std::string::npos) {
 					PrintTime printer;
 					std::string sql = line.substr(pos+4);
+					sql = String2Utf8(sql);
 					simply_execute(db, sql.c_str());
 					printer.Print("sql");
 					continue;
@@ -349,6 +401,7 @@ int main() {
 					PrintTime printer;
 					std::string sql = line.substr(pos+7);
 					std::cout << "search:" << sql << std::endl;
+					sql = String2Utf8(sql);
 					simply_query(db, sql.c_str(), "result");
 					printer.Print("search");
 					continue;
@@ -365,7 +418,7 @@ int main() {
 					mate.conversation_id = std::to_string(mate.create_time + 2);
 					mate.sender_id = "sender";
 					mate.message_type = mate.create_time % 10;
-					mate.content = content;
+					mate.content = String2Utf8(content);
 
 					std::string sql = mate.to_sql();
 					simply_execute(db, sql.c_str());

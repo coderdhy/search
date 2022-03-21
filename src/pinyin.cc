@@ -1,4 +1,4 @@
-#include "pinyin.h"
+﻿#include "pinyin.h"
 #include "pinyin_const.h"
 
 #include <map>

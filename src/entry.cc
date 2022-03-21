@@ -1,4 +1,4 @@
-#include "simple_highlight.h"
+﻿#include "simple_highlight.h"
 #include "simple_tokenizer.h"
 SQLITE_EXTENSION_INIT1
 
