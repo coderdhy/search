@@ -23,7 +23,7 @@ enum class TokenCategory {
 class SimpleTokenizer {
  private:
   static PinYin *get_pinyin();
-  bool enable_pinyin = true;
+  bool enable_simple_pinyin = true;
 
  public:
   SimpleTokenizer(const char **zaArg, int nArg);
@@ -44,6 +44,6 @@ extern "C" int fts5_simple_xTokenize(Fts5Tokenizer *tokenizer_ptr, void *pCtx, i
                                      xTokenFn xToken);
 extern "C" void fts5_simple_xDelete(Fts5Tokenizer *tokenizer_ptr);
 
-extern "C" int sqlite3_simple_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
+extern "C" int sqlite3_simple_init(sqlite3 *db, const sqlite3_api_routines *pApi);
 
 #endif  // SIMPLE_TOKENIZER_H_

@@ -1,22 +1,23 @@
 cmake_minimum_required(VERSION 3.2)
-project(simple CXX)
+project(simple)
 set(CMAKE_CXX_STANDARD 14)
 set(CXX_STANDARD_REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
+set(LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE})
+set(RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE})
+
 set(SIMPLE_SOURCE_FILES
-    cmrc/cmrc.hpp
     sqlite3/sqlite3ext.h
     sqlite3/sqlite3.h
     sqlite3/sqlite3.c
     src/pinyin.h
     src/pinyin.cc
-    src/pinyin.txt.cpp
+    src/pinyin_const.h
     src/simple_highlight.h
     src/simple_highlight.cc
     src/simple_tokenizer.h
     src/simple_tokenizer.cc
-    src/lib.cpp
     src/entry.cc
 )
 
@@ -34,7 +35,6 @@ option(SQLITE_ENABLE_RTREE        "enables R*TRee index extension"              
 option(SQLITE_RECOMMENDED_OPTIONS "compile by SQLite3 recommended options"       ON)
 
 
-add_library(simple STATIC ${SIMPLE_SOURCE_FILES})
 add_library(simple STATIC ${SIMPLE_SOURCE_FILES})
 
 set(SQLITE3_HEADERS_DIR ${PROJECT_SOURCE_DIR}/sqlite3)
@@ -69,5 +69,4 @@ target_compile_definitions(simple PUBLIC # inject user's options
     >
     )
 
-add_subdirectory(tests)
 add_subdirectory(examples)
